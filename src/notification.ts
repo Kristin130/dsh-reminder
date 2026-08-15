@@ -83,17 +83,24 @@ export function buildNotifyCommand(
       return buildWinFormsCommand(safeTitle, safeBody, iconPath, status, promptLine);
     }
     case "powershell": {
-      let iconXml = "";
-      if (iconPath) {
-        const winPath = iconPath.replace(/\//g, "\\");
-        iconXml = `\n$binding = $template.GetElementsByTagName('binding')[0]\n$img = $template.CreateElement('image')\n$img.SetAttribute('placement','appLogoOverride')\n$img.SetAttribute('src','${winPath}')\n$binding.AppendChild($img) > $null`;
-      }
+      // WSL toast, text-only. The WinRT `appLogoOverride` icon is
+      // deliberately omitted: loading an icon from the WSL filesystem
+      // requires a `\\wsl.localhost\...` path (or copying the file out),
+      // and WinRT silently drops non-standard icon sizes — the text toast
+      // itself works reliably, which is what matters here.
+      //
+      // The text is interpolated into PowerShell single-quoted strings, so
+      // any `'` in the title/body (assistant summaries routinely contain
+      // code snippets like `playCategorySound('task.complete', ...)`) would
+      // terminate the string and make the whole script fail SILENTLY.
+      const psTitle = escapeNotificationText(title).replace(/'/g, "''");
+      const psBody = escapeNotificationText(body).replace(/'/g, "''");
       const ps = `
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
 $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
 $text = $template.GetElementsByTagName('text')
-$text.Item(0).AppendChild($template.CreateTextNode('${safeTitle}')) > $null
-$text.Item(1).AppendChild($template.CreateTextNode('${safeBody}')) > $null${iconXml}
+$text.Item(0).AppendChild($template.CreateTextNode('${psTitle}')) > $null
+$text.Item(1).AppendChild($template.CreateTextNode('${psBody}')) > $null
 $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('peon-ping').Show($toast)
 `.trim();

@@ -35,16 +35,17 @@ export function detectLinuxPlayer(): string | null {
   return null;
 }
 
-// Fork addition: on Windows/WSH, prefer PowerShell 7 (`pwsh`) if installed,
-// falling back to Windows PowerShell (`powershell.exe`). Returns the binary
-// name suitable for `spawn()`.
+// Fork addition: on Windows/WSL, prefer Windows PowerShell 5.1 (`powershell`)
+// if installed — it spawns in ~0.5s vs ~1s for PowerShell 7 (`pwsh`) —
+// falling back to pwsh. Returns the binary name suitable for `spawn()`.
 let cachedPwshBin: string | null | undefined;
 
 export function detectPwshBin(): string | null {
   if (cachedPwshBin !== undefined) return cachedPwshBin;
-  // `pwsh` is cross-platform PowerShell 7; available on Windows if the user
-  // installed it. `powershell.exe` is Windows-only Windows PowerShell 5.1.
-  for (const bin of ["pwsh", "pwsh.exe", "powershell", "powershell.exe"]) {
+  // `powershell.exe` (5.1) is always present on Windows and starts faster;
+  // `pwsh` (7) is optional. The bare names resolve via `where` (PATHEXT) on
+  // native Windows; WSL bash needs the explicit `.exe` suffix.
+  for (const bin of ["powershell", "powershell.exe", "pwsh", "pwsh.exe"]) {
     try {
       // `command -v` works in git-bash / WSL; on native Windows we use `where`.
       const checker = process.platform === "win32" ? `where ${bin}` : `command -v ${bin}`;
@@ -75,4 +76,24 @@ export function detectWindowsPlayer(): string | null {
   }
   cachedWinPlayer = null;
   return null;
+}
+
+/**
+ * Convert a WSL path to the Windows path a spawned PowerShell can open.
+ * WSL2 files live under `\\wsl.localhost\<distro>\...` from Windows' side and
+ * `/mnt/<drive>/...` maps to `<drive>:\...`; passing a raw `/home/...` path
+ * to Windows-side APIs (`System.Windows.Media.MediaPlayer`, WinRT Toast icon
+ * bindings, ...) fails SILENTLY (no exception, no sound / no icon). The
+ * distro name, user name, and drive mounts are resolved dynamically via
+ * `wslpath -w` on every machine — nothing here is hardcoded. Falls back to
+ * the raw path when `wslpath` is unavailable (e.g. inside a container),
+ * where Windows-side playback cannot work anyway.
+ */
+export function wslToWindowsPath(file: string): string {
+  try {
+    const quoted = `'${file.replace(/'/g, `'\\''`)}'`
+    const out = execSync(`wslpath -w ${quoted}`, { stdio: ["ignore", "pipe", "ignore"] }).toString().trim()
+    if (out.length > 0) return out
+  } catch {}
+  return file
 }

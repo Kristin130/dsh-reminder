@@ -1,7 +1,15 @@
 /**
- * peon-ping settings section: reads and writes the host `peon-ping` settings
- * namespace through the settings scope, and triggers host actions (install /
- * preview / refresh) through the `_action` command field.
+ * peon-ping settings section: reads and writes the host through the plugin's
+ * own `/peon/api` HTTP prefix (get / set / action), which the host bridges to
+ * the pi `~/.config/peon-ping/` files and to pack install / preview /
+ * refresh.
+ *
+ * A plugin-owned HTTP route is used instead of the `settingsScope` transport
+ * because dsh rc.6's apiproxy only exposes allowlisted settings namespaces to
+ * web clients — a third-party namespace is filtered from `settings.describe`
+ * and answers `settings-not-exposed` even when registered. The page talks to
+ * the same host origin, so the browser-trust fence on `/peon/api` is
+ * satisfied by ordinary same-origin fetches.
  *
  * The component deliberately imports no Host value modules — the namespace id
  * and value shape are restated here (type-only), so the browser bundle stays
@@ -9,11 +17,9 @@
  * @module dsh-reminder/client/PeonSettingsSection
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { PeonKey } from './locales.ts'
 import css from './PeonSettingsSection.module.css'
 
@@ -33,18 +39,12 @@ export interface PeonSettingsValue {
   _notice: string
 }
 
-/** Actions the registration injects into this component. */
-export interface PeonSectionInjected {
-  scope: SettingsScope<PeonSettingsValue>
-  useSnapshot: SnapshotSelectorHook<SettingsScopeSnapshot<PeonSettingsValue>>
-  t: (key: PeonKey) => string
-  runAction: (action: string) => void
-}
-
-/** Full component props: owner props + injected face. */
-export interface PeonSectionProps extends PeonSectionInjected {
+/** Full component props: owner props (close) + injected translation face. */
+export interface PeonSectionProps {
   /** Close the settings panel (shell affordance). */
   close: () => void
+  /** Bound dictionary lookup. */
+  t: (key: PeonKey) => string
 }
 
 /** Category keys in the order the pi settings panel lists them. */
@@ -57,6 +57,47 @@ const CATEGORIES: { key: string; label: PeonKey }[] = [
   { key: 'resource.limit', label: 'cat.resource.limit' },
   { key: 'user.spam', label: 'cat.user.spam' },
 ]
+
+/** One `/peon/api` response envelope. */
+interface PeonApiResponse {
+  ok: boolean
+  value?: unknown
+  error?: { code: string; message: string }
+}
+
+/** Call one `/peon/api/<method>` endpoint on the same origin. */
+async function peonCall<T>(method: string, payload: unknown): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(`/peon/api/${method}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  } catch (error) {
+    throw new Error(`peon-ping: network error: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  const parsed = (await response.json().catch(() => null)) as PeonApiResponse | null
+  if (!response.ok || parsed === null || parsed.ok !== true || parsed.value === undefined) {
+    throw new Error(parsed?.error?.message ?? `peon-ping: HTTP ${response.status}`)
+  }
+  return parsed.value as T
+}
+
+/** Read the current section from the host. */
+async function fetchSection(): Promise<PeonSettingsValue> {
+  return peonCall<PeonSettingsValue>('get', {})
+}
+
+/** Write one scalar field (categories is written whole) and return the fresh section. */
+async function setField(field: keyof PeonSettingsValue, value: unknown): Promise<PeonSettingsValue> {
+  return peonCall<PeonSettingsValue>('set', { field, value })
+}
+
+/** Trigger one host action (install / preview / refresh) and return the fresh section. */
+async function runAction(action: string): Promise<PeonSettingsValue> {
+  return peonCall<PeonSettingsValue>('action', { action })
+}
 
 function Row({ label, children }: { label: string; children: ReactNode }): ReactNode {
   return (
@@ -85,36 +126,57 @@ function Toggle({ on, onChange, onText, offText }: {
 }
 
 export function PeonSettingsSection(props: PeonSectionProps): ReactNode {
-  const { useSnapshot, t, runAction } = props
-  const snap = useSnapshot((snapshot) => snapshot)
-  const value = snap.value
+  const { t } = props
+  const [value, setValue] = useState<PeonSettingsValue | null>(null)
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
-  const lastNotice = useRef<string | null>(null)
+  const mounted = useRef(true)
 
-  // Clear the busy flag once the host has consumed the action and published a
-  // fresh notice (the settings scope refreshes on the host update).
-  useEffect(() => {
-    if (value === undefined) return
-    if (lastNotice.current !== value._notice) {
-      lastNotice.current = value._notice
-      setPending(false)
+  const refresh = useCallback(async (): Promise<void> => {
+    try {
+      const next = await fetchSection()
+      if (!mounted.current) return
+      setValue(next)
+      setStatus('ready')
+      setError(null)
+    } catch (cause) {
+      if (!mounted.current) return
+      setStatus('error')
+      setError(cause instanceof Error ? cause.message : String(cause))
     }
-  }, [value])
+  }, [])
 
-  if (snap.status === 'loading' || value === undefined) {
+  useEffect(() => {
+    mounted.current = true
+    void refresh()
+    return () => {
+      mounted.current = false
+    }
+  }, [refresh])
+
+  if (status === 'loading' && value === null) {
     return <div className={css.wrap}>{t('notice')}…</div>
   }
-  if (snap.status === 'unavailable') {
-    return <div className={css.wrap}>{t('notice')}: unavailable</div>
+  if (status === 'error' || value === null) {
+    return <div className={css.wrap}>{t('notice')}: {error ?? t('unavailable')}</div>
   }
 
   const set = (field: keyof PeonSettingsValue, next: unknown): void => {
-    void props.scope.set(field as string, next)
+    void setField(field, next).then(refresh).catch((cause: unknown) => {
+      setStatus('error')
+      setError(cause instanceof Error ? cause.message : String(cause))
+    })
   }
 
   const trigger = (action: string): void => {
     setPending(true)
-    runAction(action)
+    void runAction(action).then(refresh).catch((cause: unknown) => {
+      setStatus('error')
+      setError(cause instanceof Error ? cause.message : String(cause))
+    }).finally(() => {
+      setPending(false)
+    })
   }
 
   const activePack = value.packs.includes(value.default_pack) ? value.default_pack : value.packs[0]

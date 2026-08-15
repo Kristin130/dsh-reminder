@@ -1,24 +1,24 @@
 /**
- * Host-side settings namespace for the dsh-reminder web settings page.
+ * Settings section bridge for the dsh-reminder web settings page.
  *
- * The web GUI's Settings page reads and writes this namespace through the
- * standard settings transport (`api.settings.describe`/`mutate` — the only
- * dynamic Host surface available to a third-party plugin's client half). The
- * host bridges it to the same `~/.config/peon-ping/config.json` + `state.json`
- * files the pi plugin uses, so event handlers and pi stay in sync.
+ * The web GUI's Settings page (client half of this package) reads and writes
+ * the host through this plugin's own `/peon/api` HTTP route — not through a
+ * settings namespace, because dsh rc.6's apiproxy only exposes allowlisted
+ * namespaces to web clients (third-party namespaces are filtered even when
+ * registered). The host bridges the section to the same
+ * `~/.config/peon-ping/config.json` + `state.json` files the pi plugin uses,
+ * so event handlers and pi stay in sync.
  *
- * The namespace carries the full config plus three host-maintained fields:
+ * The section carries the full config plus three host-maintained fields:
  * - `packs`   — installed pack names (host writes after install/refresh)
  * - `_action` — client→host command field (`install[:<names>]`, `preview`,
- *   `refresh`); the host consumes it and clears it
+ *   `refresh`); the host executes it and clears it
  * - `_notice` — host→client one-line result (install report, preview label)
  *
  * @module dsh-reminder/settings
  */
 
-import z from '@deepseek-ai/schemastery'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
-import { CATEGORY_LABELS, DEFAULT_CONFIG } from './constants.ts'
+import { DEFAULT_CONFIG } from './constants.ts'
 import type { PeonConfig, PeonState, RelayMode } from './types.ts'
 
 /** All fields the web settings page exposes, plus host-maintained ones. */
@@ -37,30 +37,7 @@ export interface PeonSettings {
   _notice: string
 }
 
-const CATEGORY_SCHEMA = Object.fromEntries(
-  Object.keys(CATEGORY_LABELS).map((key) => [key, z.boolean()]),
-)
-
-/** Schemastery schema of the `peon-ping` settings namespace. */
-export const PEON_SETTINGS_SCHEMA = z.object({
-  default_pack: z.string(),
-  volume: z.number().min(0).max(1),
-  enabled: z.boolean(),
-  desktop_notifications: z.boolean(),
-  tool_error_sounds: z.boolean(),
-  silent_window_seconds: z.number().min(0),
-  relay_mode: z.union(['auto', 'local', 'relay']),
-  paused: z.boolean(),
-  categories: z.object(CATEGORY_SCHEMA),
-  packs: z.array(z.string()),
-  _action: z.string(),
-  _notice: z.string(),
-})
-
-/** Namespace registered by the host and bound by the client page. */
-export const PEON_SETTINGS_NS = settingsNamespace('peon-ping')
-
-/** Namespace id string (for the client-side mirror and logs). */
+/** Namespace id string (kept for logs and the client-side mirror). */
 export const PEON_SETTINGS_NS_ID = 'peon-ping'
 
 /** Build the initial (base-layer) section from the current files. */

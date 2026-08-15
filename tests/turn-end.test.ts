@@ -27,7 +27,7 @@ vi.mock("../src/config", () => ({
 function makeSession(events: unknown[] = []) {
   return {
     id: "s-turn",
-    header: { id: "s-turn", version: 0, createdAt: Date.now(), cwd: process.cwd() },
+    header: { id: "s-turn", version: 0, createdAt: Date.now(), cwd: process.cwd(), delegationDepth: undefined as number | undefined },
     events,
     get surface() { return {}; },
   };
@@ -127,5 +127,36 @@ describe("default sound routing (dsh port)", () => {
     // No sound, but the desktop notification still fires.
     expect(mockPlay).not.toHaveBeenCalled();
     expect(mockNotify).toHaveBeenCalled();
+  });
+
+  it("restored session (delegationDepth 0 from JSONL round-trip) still plays task.complete", async () => {
+    // dsh-session-persistence-jsonl writes `delegationDepth ?? 0` and reads
+    // the explicit 0 back, so a session resumed after a host restart carries
+    // delegationDepth: 0 — it must still be treated as top-level.
+    const session = makeSession();
+    session.header.delegationDepth = 0;
+    for (const handler of listeners["session/event"]!) {
+      await handler(session, {
+        type: "turn/end",
+        seq: 1,
+        time: 1,
+        data: { turn: 1, reason: { kind: "completed" } },
+      } as any);
+    }
+    expect(mockPlay).toHaveBeenCalledWith("task.complete", expect.anything(), expect.anything());
+  });
+
+  it("subagent session (delegationDepth >= 1) stays silent", async () => {
+    const session = makeSession();
+    session.header.delegationDepth = 1;
+    for (const handler of listeners["session/event"]!) {
+      await handler(session, {
+        type: "turn/end",
+        seq: 1,
+        time: 1,
+        data: { turn: 1, reason: { kind: "completed" } },
+      } as any);
+    }
+    expect(mockPlay).not.toHaveBeenCalled();
   });
 });

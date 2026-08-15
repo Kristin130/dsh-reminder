@@ -38,9 +38,11 @@ export const DEFAULT_CONFIG: PeonConfig = {
   annoyed_window_seconds: 10,
   silent_window_seconds: 0,
   relay_mode: "auto",
-  // Fork default: 2s (upstream hardcodes 3s in audio.ts). Clips are short;
-  // shorter wait = fewer lingering powershell processes when events fire fast.
-  playback_wait_seconds: 2,
+  // Fork default: 8s ceiling (upstream hardcodes 3s in audio.ts). The WSL
+  // player now waits for the clip to end naturally and only uses this as an
+  // upper bound, so a generous ceiling costs nothing — the powershell
+  // process exits as soon as the clip finishes, and long clips aren't cut.
+  playback_wait_seconds: 8,
 };
 
 export const DEFAULT_STATE: PeonState = {

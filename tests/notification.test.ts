@@ -117,12 +117,30 @@ describe("notification", () => {
       expect(cmd!.bin).toBe("osascript");
     });
 
-    it("includes icon in powershell toast when iconPath provided", async () => {
+    it("keeps the powershell toast text-only (no icon binding)", async () => {
+      // WSL toast is deliberately text-only: WinRT appLogoOverride silently
+      // drops icons served from `\\wsl.localhost\...` paths (and non-standard
+      // sizes), so we don't hand it an icon at all.
       const { buildNotifyCommand } = await import("../src/notification");
       const cmd = buildNotifyCommand("powershell", "Title", "Body", "/path/to/icon.png");
       expect(cmd).not.toBeNull();
-      const scriptArg = cmd!.args.find((a: string) => a.includes("icon.png"));
-      expect(scriptArg).toBeDefined();
+      const script = cmd!.args.join(" ");
+      expect(script).not.toContain("appLogoOverride");
+      expect(script).not.toContain("icon.png");
+    });
+
+    it("doubles single quotes in the powershell toast (assistant summaries contain code)", async () => {
+      // The toast text is interpolated into PowerShell single-quoted strings;
+      // a bare `'` (e.g. `playCategorySound('task.complete', ...)` in a
+      // summary) would terminate the string and make the script fail
+      // silently — no popup, no error.
+      const { buildNotifyCommand } = await import("../src/notification");
+      const cmd = buildNotifyCommand("powershell", "it's done", "playCategorySound('task.complete')", "/path/to/icon.png");
+      expect(cmd).not.toBeNull();
+      const script = cmd!.args.join(" ");
+      expect(script).toContain("CreateTextNode('it''s done')");
+      expect(script).toContain("CreateTextNode('playCategorySound(''task.complete'')')");
+      expect(script).not.toContain("CreateTextNode('it's");
     });
   });
 

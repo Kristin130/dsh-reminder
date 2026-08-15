@@ -20,7 +20,6 @@
  * `SessionEvent[]` log (`assistant/message` events).
  */
 
-import { basename } from "node:path";
 import { execSync } from "node:child_process";
 import type { SessionEvent } from "@deepseek-ai/dsh-session";
 
@@ -49,8 +48,17 @@ export function resolveProjectName(cwd: string, sessionName?: string): string {
   const gitRepo = readGitRepoName(cwd);
   if (gitRepo) return sanitizeLabel(gitRepo);
 
-  // 3. Folder name fallback
-  return sanitizeLabel(basename(cwd)) || "project";
+  // 3. Folder name fallback. Normalize backslashes to forward slashes first:
+  //    `node:path`'s basename only treats the host's native separator
+  //    specially, so a Windows path on a POSIX host (or vice versa) would
+  //    otherwise keep the whole path. Taking the last segment manually keeps
+  //    the result identical on every OS.
+  const folder = cwd
+    .replace(/\\/g, "/")
+    .replace(/\/+$/, "")
+    .split("/")
+    .pop();
+  return sanitizeLabel(folder ?? "") || "project";
 }
 
 function readGitRepoName(cwd: string): string | null {

@@ -80,16 +80,20 @@ All settings live in the **web Settings page**: open Settings (the gear icon in 
 
 Changes are written through to `~/.config/peon-ping/config.json` immediately, so they apply to the next event without a restart. There is no `/peon` slash command — the pi TUI panel became this web page.
 
+> **Settings-page transport**: the page talks to the host through the plugin's own `/peon/api` HTTP route (same origin, behind the browser-trust fence), **not** through the host's settings-namespace allowlist (`dsh-host-apiproxy`'s `WEB_SETTINGS_NAMESPACES` admits only built-in namespaces; a third-party namespace is filtered from `settings.describe` even when registered). So the settings page works on dsh versions that never added `peon-ping` to that allowlist.
+
 To install specific packs from the registry directly, edit `~/.config/peon-ping/config.json` or use the registry's pack names with the page's install action (the page installs the defaults; pack names come from the [peon-ping registry](https://peonping.github.io/registry/index.json)).
 
 ## Platform support
 
-| Platform | Player |
-|----------|--------|
-| macOS | `afplay` (built-in) |
-| Linux | `pw-play`, `paplay`, `ffplay`, `mpv`, `play`, or `aplay` (first found) |
-| WSL | PowerShell `MediaPlayer` |
-| **Windows (native)** ⭐ | `ffplay` (recommended, `winget install Gyan.FFmpeg`) → `mpv` → `winmm.dll PlaySound` fallback (no volume control) |
+| Platform | Player | Notifications |
+|----------|--------|---------------|
+| macOS | `afplay` (built-in) | `osascript` |
+| Linux | `pw-play`, `paplay`, `ffplay`, `mpv`, `play`, or `aplay` (first found) | `notify-send` (desktop session required) |
+| WSL | PowerShell `MediaPlayer` — the WSL path is converted to the Windows view (`wslpath -w` → `\\wsl.localhost\<distro>\...` or `D:\...`) so the spawned Windows PowerShell can actually open the file | Windows Toast (text-only; no icon — WinRT silently drops icons from WSL paths) |
+| **Windows (native)** ⭐ | `ffplay` (recommended, `winget install Gyan.FFmpeg`) → `mpv` → `winmm.dll PlaySound` fallback (no volume control) | Custom WinForms popup (multi-monitor, no AUMID needed) |
+
+WSL audio works out of the box on any distro: the `\\wsl.localhost\<distro>\...` prefix, the user name, and the `/mnt/<drive>` mounts are resolved dynamically by `wslpath -w` per machine — nothing is hardcoded.
 
 ## Config and data
 
@@ -121,11 +125,15 @@ The extension auto-detects SSH sessions, devcontainers, and Codespaces, and rout
 
 ## Development
 
+The repository is self-contained: all type declarations come from the npm
+devDependencies (no vendored or machine-specific paths in `tsconfig.json`).
+
 ```bash
 npm install
 npm test              # run tests
 npm run typecheck     # type check
-npm run build         # build lib/
+npm run build         # build lib/ (host bundle)
+npm run build:client  # build lib/client.js (browser bundle)
 npm run publish:dry-run  # verify the npm package contents
 ```
 

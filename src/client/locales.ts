@@ -8,6 +8,7 @@ export type PeonKey =
   | 'title'
   | 'description'
   | 'notice'
+  | 'unavailable'
   | 'sounds'
   | 'active'
   | 'paused'
@@ -37,6 +38,7 @@ export const zh: Record<PeonKey, string> = {
   title: 'peon-ping 声音通知',
   description: '任务完成或意外终止时播放音效，并显示桌面通知。音效包与 pi 的 peon-ping 共用同一目录。',
   notice: '通知',
+  unavailable: '无法获取配置（该命名空间未对网页客户端开放）',
   sounds: '声音',
   active: '响铃中',
   paused: '已暂停',
@@ -67,6 +69,7 @@ export const en: Record<PeonKey, string> = {
   title: 'peon-ping sound notifications',
   description: 'Plays sounds when a task completes or terminates unexpectedly, and shows desktop notifications. Sound packs are shared with the pi peon-ping.',
   notice: 'Notice',
+  unavailable: 'settings unavailable (the namespace is not exposed to the web client)',
   sounds: 'Sounds',
   active: 'active',
   paused: 'paused',
