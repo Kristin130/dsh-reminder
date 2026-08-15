@@ -26,6 +26,7 @@
     "type": "git",
     "url": "git+https://github.com/Kristin130/dsh-reminder.git"
   },
+  "homepage": "https://github.com/Kristin130/dsh-reminder",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
