@@ -48,6 +48,7 @@ describe("default sound routing (dsh port)", () => {
         return () => {};
       },
       get: () => undefined,
+        inject: () => {},
       logger: { warn: () => {}, info: () => {}, error: () => {} },
     };
     const { apply } = await import("../index");

@@ -302,8 +302,13 @@ export function apply(ctx: Context): void {
   // Web settings: the Settings page (client half of this package) reads and
   // writes the `peon-ping` namespace; the host bridges it to the pi config /
   // state files and executes page actions (pack install, preview, refresh).
-  const settings = ctx.get('settings') as SettingsLike | undefined
-  if (settings !== undefined) {
+  //
+  // NOTE: the wiring must NOT gate on `ctx.get('settings')` at apply time —
+  // plugin activation is service-availability driven, so the settings service
+  // may activate after this plugin. `installSettingsSection` already waits via
+  // `ctx.inject(['settings'], ...)`; the update inside the handler resolves
+  // the service lazily (a change can only fire while settings is active).
+  {
     let current: () => PeonSettings = () => buildSettingsEntry(
       loadConfig(),
       loadState(),
@@ -360,6 +365,8 @@ export function apply(ctx: Context): void {
       saveState(fileState)
 
       if (notice !== section._notice || nextAction !== section._action || packs !== section.packs) {
+        const settings = ctx.get('settings') as SettingsLike | undefined
+        if (settings === undefined) return
         writingBack = true
         try {
           await settings.update(PEON_SETTINGS_NS, {

@@ -29,9 +29,11 @@ const statePath = join(mkdtempSync(join(tmpdir(), 'dsh-reminder-state-')), 'stat
 
 try {
   const ctx = new Context()
-  new SettingsFilePlugin(ctx, { path: doc, watch: false })
+  // Reproduce the real boot order: the settings service may activate AFTER the
+  // plugin, so mount the plugin first — installSettingsSection must wait.
   ctx.plugin(plugin) // dsh-reminder host
-  await new Promise((r) => setTimeout(r, 50))
+  new SettingsFilePlugin(ctx, { path: doc, watch: false })
+  await new Promise((r) => setTimeout(r, 100))
 
   const settings = ctx.settings
   const described = await settings.describe({})

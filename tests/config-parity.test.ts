@@ -81,6 +81,7 @@ describe("config parity with upstream peon-ping", () => {
           return () => {};
         },
         get: () => undefined,
+        inject: () => {},
         logger: { warn: () => {}, info: () => {}, error: () => {} },
       };
     });
