@@ -258,7 +258,7 @@ export function PeonSettingsSection(props: PeonSectionProps): ReactNode {
         />
       </Row>
 
-      <Row label={t('toolErrorBeep')}>
+      <Row label={t('toolErrorAlert')}>
         <Toggle
           on={value.tool_error_sounds}
           onChange={(next) => set('tool_error_sounds', next)}

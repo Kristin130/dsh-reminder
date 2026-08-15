@@ -20,7 +20,7 @@
 |-------|----------|----------|----------|
 | 会话开始 | `session.start` —— “Ready to work?” | — | 关 |
 | Agent 开始工作 | `task.acknowledge` —— “Work, work.” | — | 关 |
-| 单个工具失败 | `task.error` —— 错误音效 | `error` —— 正文标明出错工具 | 关 |
+| 单个工具失败 | `task.error` —— 错误音效 | `error` —— 正文标明出错工具 | 关（声音和弹窗都跟随 `tool_error_sounds` 开关） |
 | 快速连续提问（10 秒内 ≥3 次） | `user.spam` —— 不耐烦语音 | — | 关 |
 | **任务完成** | `task.complete` —— 完成音效 | `done` —— 正文显示助手最后回复（截断） | **开** |
 | **任务意外终止**（出错 / 取消 / 阻塞 / 达到 token 上限） | `task.error` —— 错误音效 | `error` —— 正文标明失败原因 | **开** |
@@ -107,8 +107,8 @@ WSL 音频在任意发行版上开箱即用：`\\wsl.localhost\<发行版>\...` 
 | `volume` | `1.0` | 音量（0.0–1.0） |
 | `enabled` | `true` | 总开关 |
 | `desktop_notifications` | `true` | 任务完成时显示系统通知 |
-| `categories` | `task.complete` + `task.error` 开，其余关 | 各事件音效开关（见功能表） |
-| `tool_error_sounds` | `false` | 单个工具调用失败时是否响铃 |
+| `categories` | `task.complete` + `task.error` 开，其余关 | 各事件的声音与弹窗开关（见功能表） |
+| `tool_error_sounds` | `false` | 单个工具调用失败：开启时响铃+弹窗，关闭时完全静默 |
 | `silent_window_seconds` | `0` | 对短于 N 秒的任务抑制 `task.complete` |
 | `annoyed_threshold` | `3` | 触发“快速提问”音效的连续提问次数 |
 | `annoyed_window_seconds` | `10` | 快速提问检测时间窗口 |

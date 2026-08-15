@@ -5,24 +5,34 @@ import { DEFAULT_CONFIG, DEFAULT_STATE } from "../src/constants";
 // never touches the real ~/.config/peon-ping files. This file is the only one
 // mocking ../src/config; the plugin-level tests here exercise the default
 // sound routing ("beep only on task complete and unexpected termination").
-const mockPlay = vi.fn();
-const mockNotify = vi.fn();
-const mockSaveState = vi.fn();
+// vi.hoisted: the vi.mock factories below run before this module's own
+// bindings exist, so the shared fns must be created at hoist time.
+const { mockPlay, mockNotify, mockSaveState } = vi.hoisted(() => ({
+  mockPlay: vi.fn(),
+  mockNotify: vi.fn(),
+  mockSaveState: vi.fn(),
+}));
 
 vi.mock("../src/audio", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/audio")>();
   return { ...actual, playCategorySound: mockPlay, sendNotification: mockNotify };
 });
 
-vi.mock("../src/config", () => ({
-  ensureDirs: () => {},
-  migrateConfig: (raw: Record<string, any>) => raw,
-  // relay_mode 'relay' makes shouldPlaySounds() true without real packs.
-  loadConfig: () => ({ ...DEFAULT_CONFIG, relay_mode: "relay" }),
-  loadState: () => ({ ...DEFAULT_STATE }),
-  saveConfig: () => {},
-  saveState: mockSaveState,
-}));
+vi.mock("../src/config", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/config")>();
+  return {
+    ...actual,
+    ensureDirs: () => {},
+    // relay_mode 'relay' makes shouldPlaySounds() true without real packs.
+    // Individual tests override the return value to flip toggles.
+    loadConfig: vi.fn(() => ({ ...DEFAULT_CONFIG, relay_mode: "relay" })),
+    loadState: () => ({ ...DEFAULT_STATE }),
+    saveConfig: () => {},
+    saveState: mockSaveState,
+  };
+});
+
+import { loadConfig } from "../src/config";
 
 function makeSession(events: unknown[] = []) {
   return {
@@ -41,6 +51,7 @@ describe("default sound routing (dsh port)", () => {
     mockPlay.mockClear();
     mockNotify.mockClear();
     mockSaveState.mockClear();
+    vi.mocked(loadConfig).mockReturnValue({ ...DEFAULT_CONFIG, relay_mode: "relay" });
     listeners = {};
     stubCtx = {
       on: (name: string, handler: Function) => {
@@ -100,7 +111,7 @@ describe("default sound routing (dsh port)", () => {
     expect(mockPlay).toHaveBeenCalledWith("task.error", expect.anything(), expect.anything());
   });
 
-  it("tool/result error stays silent by default (tool_error_sounds false)", async () => {
+  it("tool/result error stays fully silent by default (tool_error_sounds false)", async () => {
     const session = makeSession([{
       type: "tool/call",
       seq: 0,
@@ -124,9 +135,80 @@ describe("default sound routing (dsh port)", () => {
         },
       } as any);
     }
-    // No sound, but the desktop notification still fires.
+    // An individual tool failure does NOT terminate the task — neither the
+    // beep nor the popup fires unless the user opted into tool_error_sounds.
     expect(mockPlay).not.toHaveBeenCalled();
-    expect(mockNotify).toHaveBeenCalled();
+    expect(mockNotify).not.toHaveBeenCalled();
+  });
+
+  it("tool/result error beeps and notifies when tool_error_sounds enabled", async () => {
+    vi.mocked(loadConfig).mockReturnValue({
+      ...DEFAULT_CONFIG,
+      relay_mode: "relay",
+      tool_error_sounds: true,
+    });
+    const session = makeSession([{
+      type: "tool/call",
+      seq: 0,
+      time: 0,
+      data: { turn: 1, step: 1, callId: "c-1", name: "bash", arguments: "{}" },
+    }]);
+    for (const handler of listeners["session/event"]!) {
+      await handler(session, {
+        type: "tool/result",
+        seq: 1,
+        time: 1,
+        data: {
+          turn: 1,
+          step: 1,
+          message: {
+            role: "user",
+            id: "m-1",
+            source: { kind: "tool", callId: "c-1" },
+            content: [{ type: "tool-result", toolCallId: "c-1", content: [{ type: "text", text: "nope" }], isError: true }],
+          },
+        },
+      } as any);
+    }
+    expect(mockPlay).toHaveBeenCalledWith("task.error", expect.anything(), expect.anything());
+    const notifyCall = mockNotify.mock.calls.find((c) => c[4] === "error");
+    expect(notifyCall).toBeDefined();
+    expect(String(notifyCall![1])).toContain("[bash]");
+  });
+
+  it("compaction/end stays fully silent by default (resource.limit off)", async () => {
+    const session = makeSession();
+    for (const handler of listeners["session/event"]!) {
+      await handler(session, {
+        type: "compaction/end",
+        seq: 1,
+        time: 1,
+        data: {},
+      } as any);
+    }
+    // Compaction is a routine background event — off by default, beep AND popup.
+    expect(mockPlay).not.toHaveBeenCalled();
+    expect(mockNotify).not.toHaveBeenCalled();
+  });
+
+  it("compaction/end notifies when resource.limit category enabled", async () => {
+    vi.mocked(loadConfig).mockReturnValue({
+      ...DEFAULT_CONFIG,
+      relay_mode: "relay",
+      categories: { ...DEFAULT_CONFIG.categories, "resource.limit": true },
+    });
+    const session = makeSession();
+    for (const handler of listeners["session/event"]!) {
+      await handler(session, {
+        type: "compaction/end",
+        seq: 1,
+        time: 1,
+        data: {},
+      } as any);
+    }
+    expect(mockPlay).toHaveBeenCalledWith("resource.limit", expect.anything(), expect.anything());
+    const notifyCall = mockNotify.mock.calls.find((c) => c[4] === "compacted");
+    expect(notifyCall).toBeDefined();
   });
 
   it("restored session (delegationDepth 0 from JSONL round-trip) still plays task.complete", async () => {

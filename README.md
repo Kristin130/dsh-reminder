@@ -20,8 +20,7 @@ Thank you to all of them for the original work and the MIT license that makes th
 |-------|---------------|----------------------|---------------|
 | Session start | `session.start` — "Ready to work?" | — | off |
 | Agent starts working | `task.acknowledge` — "Work, work." | — | off |
-| Individual tool failure | `task.error` — error sound | `error` — body names the failing tool | off |
-| Rapid prompts (≥3 in 10s) | `user.spam` — annoyed voice line | — | off |
+| Individual tool failure | `task.error` — error sound | `error` — body names the failing tool | off (beep **and** popup follow the `tool_error_sounds` switch) || Rapid prompts (≥3 in 10s) | `user.spam` — annoyed voice line | — | off |
 | **Task completes** | `task.complete` — completion sound | `done` — body shows the assistant's last response (truncated) | **on** |
 | **Task terminates unexpectedly** (error / cancelled / blocked / token limit) | `task.error` — error sound | `error` — body names the failure | **on** |
 | Context compaction | `resource.limit` — limit sound | `compacted` — body: "Context compacted" | off |
@@ -109,8 +108,8 @@ Config, state, and packs live in the **same** files the pi plugin uses, so a mac
 | `volume` | `1.0` | Sound volume (0.0–1.0) |
 | `enabled` | `true` | Master on/off switch |
 | `desktop_notifications` | `true` | Show system notifications on task complete |
-| `categories` | `task.complete` + `task.error` on, rest off | Per-event sound toggles (see the feature table) |
-| `tool_error_sounds` | `false` | Beep when an individual tool call fails |
+| `categories` | `task.complete` + `task.error` on, rest off | Per-event toggles for sound **and** popup (see the feature table) |
+| `tool_error_sounds` | `false` | Individual tool failures: beep + popup when enabled; fully silent when off |
 | `silent_window_seconds` | `0` | Suppress `task.complete` for tasks shorter than N seconds |
 | `annoyed_threshold` | `3` | Number of rapid prompts to trigger spam detection |
 | `annoyed_window_seconds` | `10` | Time window for spam detection |

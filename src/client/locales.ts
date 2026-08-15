@@ -19,7 +19,7 @@ export type PeonKey =
   | 'installing'
   | 'preview'
   | 'notifications'
-  | 'toolErrorBeep'
+  | 'toolErrorAlert'
   | 'silentWindow'
   | 'relayMode'
   | 'enabled'
@@ -49,7 +49,7 @@ export const zh: Record<PeonKey, string> = {
   installing: '正在安装…',
   preview: '试听',
   notifications: '桌面通知',
-  toolErrorBeep: '工具出错响铃',
+  toolErrorAlert: '工具出错提醒',
   silentWindow: '静默窗口（秒）',
   relayMode: '中继模式',
   enabled: '开',
@@ -80,7 +80,7 @@ export const en: Record<PeonKey, string> = {
   installing: 'Installing…',
   preview: 'Preview',
   notifications: 'Desktop notifications',
-  toolErrorBeep: 'Tool error beep',
+  toolErrorAlert: 'Tool error alert',
   silentWindow: 'Silent window (s)',
   relayMode: 'Relay mode',
   enabled: 'on',

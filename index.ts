@@ -298,8 +298,9 @@ export function apply(ctx: Context): void {
 
   // pi `tool_execution_end` with isError — error sound (opt-in) + desktop
   // notification. An individual tool failure does NOT terminate the task, so
-  // by default it stays silent (`tool_error_sounds: false`); only whole-task
-  // failures beep (see the turn/end handler).
+  // by default it stays silent (`tool_error_sounds: false`) — both the beep
+  // AND the popup follow that switch; only whole-task failures announce
+  // themselves (see the turn/end handler).
   ctx.on('session/event', (session: Session, event: SessionEvent) => {
     if (!isTopLevel(session)) return
     if (event.type !== 'tool/result') return
@@ -316,16 +317,16 @@ export function apply(ctx: Context): void {
 
     if (config.tool_error_sounds) {
       playCategorySound('task.error', config, state)
-    }
 
-    if (config.enabled && !state.paused && config.desktop_notifications) {
-      const project = projectName(session)
-      const errText = extractToolErrorText(toolResult)
-      const detail = errText || 'failed'
-      const source = (event.data as { message?: { source?: { callId?: unknown } } }).message?.source
-      const toolName = toolNameFor(session, source?.callId)
-      const { title, body } = buildNotifyContent('error', project, `[${toolName}]: ${detail}`)
-      sendNotification(title, body, config, undefined, 'error', currentPrompts.get(session))
+      if (config.enabled && !state.paused && config.desktop_notifications) {
+        const project = projectName(session)
+        const errText = extractToolErrorText(toolResult)
+        const detail = errText || 'failed'
+        const source = (event.data as { message?: { source?: { callId?: unknown } } }).message?.source
+        const toolName = toolNameFor(session, source?.callId)
+        const { title, body } = buildNotifyContent('error', project, `[${toolName}]: ${detail}`)
+        sendNotification(title, body, config, undefined, 'error', currentPrompts.get(session))
+      }
     }
   })
 
@@ -377,6 +378,9 @@ export function apply(ctx: Context): void {
 
   // pi `session_compact` — resource-limit sound + notification. Like the
   // fork, we fire on the event AFTER compaction completes, not before.
+  // Compaction is a routine background event, so it belongs to the
+  // `resource.limit` category — OFF by default. Both the beep and the popup
+  // follow that category switch.
   ctx.on('session/event', (session: Session, event: SessionEvent) => {
     if (!isTopLevel(session)) return
     if (event.type !== 'compaction/end') return
@@ -384,6 +388,7 @@ export function apply(ctx: Context): void {
     config = loadConfig()
     state = loadState()
     if (!shouldPlaySounds()) return
+    if (!config.categories['resource.limit']) return
 
     playCategorySound('resource.limit', config, state)
 
