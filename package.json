@@ -1,7 +1,7 @@
 {
   "name": "dsh-reminder",
-  "version": "0.1.1",
-  "description": "peon-ping sound notifications for DeepSeek Harness — a faithful port of the pi plugin pi-peon-ping-win (native Windows audio fallback, WinForms popup, OpenPeon sound packs). Beeps only when a task completes or terminates unexpectedly, by default.",
+  "version": "0.1.2",
+  "description": "peon-ping sound notifications for DeepSeek Harness — a faithful port of the pi plugin pi-peon-ping-win (native Windows audio fallback, WinForms popup, OpenPeon sound packs). Beeps only when a task completes or terminates unexpectedly, by default. Settings live in the web Settings page (below Agent Presets).",
   "type": "module",
   "keywords": [
     "dsh",
@@ -34,6 +34,10 @@
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./client": {
+      "types": "./lib/client.d.ts",
+      "default": "./lib/client.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
@@ -47,10 +51,12 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:client": "tsdown",
+    "build:all": "npm run build && npm run build:client",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepack": "npm run build",
+    "prepack": "npm run build:all",
     "publish:public": "npm publish --registry https://registry.npmjs.org",
     "publish:dry-run": "npm publish --dry-run --registry https://registry.npmjs.org",
     "publish:otp": "npm publish --registry https://registry.npmjs.org --otp"
@@ -58,25 +64,53 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",
     "@deepseek-ai/dsh-agent": "*",
-    "@deepseek-ai/dsh-commands": "*",
+    "@deepseek-ai/dsh-settings": "*",
+    "@deepseek-ai/schemastery": "*",
     "@deepseek-ai/dsh-session": "*",
-    "@deepseek-ai/dsh-session-title": "*"
+    "@deepseek-ai/dsh-session-title": "*",
+    "@deepseek-ai/dsh-client-runtime": "*",
+    "@deepseek-ai/dsh-client-ui-slots": "*",
+    "@deepseek-ai/dsh-client-ui-settings": "*",
+    "@deepseek-ai/dsh-client-web-react": "*",
+    "@deepseek-ai/dsh-client-ui-primitives": "*",
+    "@deepseek-ai/dsh-client-locale": "*",
+    "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
-    "@deepseek-ai/dsh-commands": {
+    "@deepseek-ai/dsh-session-title": {
       "optional": true
     },
-    "@deepseek-ai/dsh-session-title": {
+    "@deepseek-ai/dsh-client-runtime": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-slots": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-settings": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-web-react": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-primitives": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-locale": {
       "optional": true
     }
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/react": "^18.2.0",
     "typescript": "^5.9.0",
     "vitest": "^2.1.0",
+    "tsdown": "^0.22.2",
+    "lightningcss": "^1.25.0",
+    "react": "^18.2.0",
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-agent": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-commands": "^0.0.1-rc.1",
+    "@deepseek-ai/dsh-settings": "^0.0.1-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.1",
     "@deepseek-ai/dsh-session": "^0.0.1-rc.1",
     "@deepseek-ai/dsh-session-title": "^0.0.1-rc.1"
   },
@@ -86,6 +120,19 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-web-react",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-api-remotes"
+      ],
+      "platform": "web"
     }
   }
 }

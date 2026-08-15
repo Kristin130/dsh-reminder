@@ -108,13 +108,4 @@ describe("config parity with upstream peon-ping", () => {
       });
     });
   });
-
-  describe("UI status includes new config options", () => {
-    it("buildStatusText includes silent window and volume", async () => {
-      const { buildStatusText } = await import("../src/ui");
-      const text = buildStatusText();
-      expect(text).toContain("Silent window");
-      expect(text).toContain("Volume");
-    });
-  });
 });

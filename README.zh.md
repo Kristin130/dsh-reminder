@@ -68,35 +68,17 @@ dsh plugin --profile web remove dsh-reminder
 
 ## 使用方法
 
-首次运行时插件会提示安装音效包。执行：
+所有设置都在**网页设置页**里：打开设置（侧边栏齿轮图标），在 **Agent 预设** 下面找到 **peon-ping 声音** 一节。在那里可以：
 
-```
-/peon install
-```
+- 查看当前状态（音效包、音量、开关、中继模式）和宿主返回的通知信息；
+- **安装默认音效包**（从 [peon-ping registry](https://peonping.github.io/registry/) 下载 10 个默认包）；
+- 从已安装的音效包中选择当前使用的包；
+- 调节音量；
+- 开关桌面通知、工具出错响铃，以及每个音效分类；
+- 暂停/恢复声音、设置静默窗口与中继模式；
+- **试听** 当前音效包的 session.start 声音。
 
-从 [peon-ping registry](https://peonping.github.io/registry/) 下载 10 个默认音效包。安装指定音效包：
-
-```
-/peon install peon_ru
-/peon install peon_ru glados duke_nukem
-```
-
-设置（pi 的 `/peon` TUI 面板改为斜杠命令输出，因为 dsh 网页界面没有 TUI）：
-
-```
-/peon                      — 查看当前设置
-/peon install [packs...]   — 下载音效包
-/peon pack <name>          — 切换当前音效包
-/peon volume <0-100>       — 设置音量百分比
-/peon toggle <category>    — 开启/关闭某个音效分类
-/peon pause | resume       — 暂停/恢复所有声音
-/peon notify on|off        — 开关桌面通知
-/peon tool-error on|off    — 单个工具失败时是否响铃（默认关）
-/peon silent <seconds>     — 对短任务抑制 task.complete
-/peon relay auto|local|relay
-/peon preview              — 试听 session.start 音效
-/peon help
-```
+改动会立即写入 `~/.config/peon-ping/config.json`，下一次事件即生效，无需重启。已删除 `/peon` 斜杠命令 —— pi 的 TUI 面板改成了这个网页页面。
 
 ## 平台支持
 

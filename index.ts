@@ -12,9 +12,9 @@
  *   pi `agent_end`              → dsh `turn/end` (task complete + summary popup)
  *   pi `session_compact`        → dsh `compaction/end` (fires AFTER compaction)
  *
- * The pi TUI settings/install panels become slash commands:
- *   /peon, /peon install [packs...], /peon volume/pack/toggle/pause/resume/
- *   notify/silent/relay/preview/help.
+ * The pi TUI settings/install panels move into the web GUI: the Settings
+ * page (the client half of this package) reads and writes the `peon-ping`
+ * settings namespace, placed right below "Agent Presets" in Settings.
  *
  * Config and state stay in `~/.config/peon-ping/` — the same files the pi
  * plugin uses — so packs and settings are shared between pi and dsh.
@@ -24,29 +24,34 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
-import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
+import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 
 // Type-level: merges `compaction/end` into the SessionEventMap vocabulary
 // (mirrors @deepseek-ai/dsh-compaction/types; no runtime import).
 import './src/compaction-events.ts'
 
 import { playCategorySound, sendNotification } from './src/audio.ts'
-import { ensureDirs, loadConfig, loadState, saveState } from './src/config.ts'
+import { ensureDirs, loadConfig, loadState, saveConfig, saveState } from './src/config.ts'
 import { buildNotifyContent, extractLastAssistantText, extractToolErrorText, resolveProjectName } from './src/notify-content.ts'
 import { listPacks } from './src/packs.ts'
 import { checkRelayHealth, detectRemoteSession, getRelayUrl, relaySetupInstructions } from './src/relay.ts'
-import { applySetting, buildStatusText, runInstall } from './src/ui.ts'
+import { previewPackSound, runInstall } from './src/ui.ts'
+import {
+  buildSettingsEntry,
+  configFromSettings,
+  hasAction,
+  parseAction,
+  PEON_SETTINGS_NS,
+  PEON_SETTINGS_SCHEMA,
+  type PeonSettings,
+} from './src/settings.ts'
 import type { PeonConfig, PeonState } from './src/types.ts'
 
 export const name = 'peon-ping'
 
-/** Structural commands service (optional; the /peon surface). */
-interface CommandsLike {
-  register(definition: {
-    name: string
-    description: string
-    handler: (invocation: CommandInvocation) => CommandResult | Promise<CommandResult>
-  }): void
+/** Structural settings service (optional; the web Settings page surface). */
+interface SettingsLike {
+  update(ns: string, patch: object): Promise<void>
 }
 
 /** Structural session-title service (optional; popup project name). */
@@ -294,69 +299,87 @@ export function apply(ctx: Context): void {
     }
   })
 
-  // /peon — settings and install commands.
-  const commands = ctx.get('commands') as CommandsLike | undefined
-  if (commands !== undefined) {
-    commands.register({
-      name: 'peon',
-      description: 'peon-ping sound settings',
-      handler: async (invocation: CommandInvocation): Promise<CommandResult> => {
-        const sub = (invocation.rawInput || '').trim()
+  // Web settings: the Settings page (client half of this package) reads and
+  // writes the `peon-ping` namespace; the host bridges it to the pi config /
+  // state files and executes page actions (pack install, preview, refresh).
+  const settings = ctx.get('settings') as SettingsLike | undefined
+  if (settings !== undefined) {
+    let current: () => PeonSettings = () => buildSettingsEntry(
+      loadConfig(),
+      loadState(),
+      listPacks().map((p) => p.name),
+    )
+    let writingBack = false
 
-        if (sub === 'help') {
-          return {
-            kind: 'success',
-            text: [
-              'peon-ping commands:',
-              '  /peon                    — current settings',
-              '  /peon install [packs...] — download sound packs',
-              '  /peon pack <name>        — switch the active pack',
-              '  /peon volume <0-100>     — set volume percent',
-              '  /peon toggle <category>  — enable/disable one sound category',
-              '  /peon pause | resume     — pause/resume all sounds',
-              '  /peon notify on|off      — toggle desktop notifications',
-              '  /peon tool-error on|off  — beep on individual tool failures (default off)',
-              '  /peon silent <seconds>   — suppress task.complete for short tasks',
-              '  /peon relay auto|local|relay',
-              '  /peon preview            — play the session.start sound',
-            ].join('\n'),
-          }
-        }
+    const onSectionChange = async (): Promise<void> => {
+      const section = current()
+      if (section === undefined) return
 
-        if (sub === 'install' || sub.startsWith('install ')) {
-          const packNames = sub.replace(/^install\s*/, '').trim().split(/\s+/).filter(Boolean)
+      // Actions are fire-once client commands; the host executes and clears.
+      let notice = section._notice
+      let packs = section.packs
+      let nextAction = section._action
+
+      if (hasAction(section)) {
+        const { command, names } = parseAction(section._action)
+        if (command === 'install') {
           installing = true
           try {
             const progress: string[] = []
-            const report = await runInstall(
-              packNames,
-              (msg) => {
-                progress.push(msg)
-                ctx.logger.info(`peon-ping: ${msg}`)
-              },
-              () => invocation.signal.aborted,
-            )
-            const progressTail = progress.slice(-8).join('\n')
-            if (report.cancelled) {
-              return { kind: 'error', text: `peon-ping: install cancelled (${report.installed}/${report.total} packs installed).\n${progressTail}` }
-            }
-            if (report.installed > 0) {
-              return { kind: 'success', text: `peon-ping: installed ${report.installed}/${report.total} packs${report.failed.length > 0 ? `; failed: ${report.failed.join(', ')}` : ''}.\n${progressTail}` }
-            }
-            return { kind: 'error', text: `peon-ping: no packs installed (${report.total} attempted${report.failed.length > 0 ? `; failed: ${report.failed.join(', ')}` : ''}).\n${progressTail}` }
+            const report = await runInstall(names, (msg) => {
+              progress.push(msg)
+              ctx.logger.info(`peon-ping: ${msg}`)
+            })
+            packs = listPacks().map((p) => p.name)
+            notice = report.cancelled
+              ? `Install cancelled (${report.installed}/${report.total} packs).`
+              : report.installed > 0
+                ? `Installed ${report.installed}/${report.total} packs${report.failed.length > 0 ? `; failed: ${report.failed.join(', ')}` : ''}.`
+                : `No packs installed (${report.total} attempted${report.failed.length > 0 ? `; failed: ${report.failed.join(', ')}` : ''}).`
           } finally {
             installing = false
           }
+        } else if (command === 'preview') {
+          const previewed = previewPackSound(section.default_pack)
+          notice = previewed !== null ? `Previewing ${previewed}.` : 'No preview sound available (install packs first).'
+        } else if (command === 'refresh') {
+          packs = listPacks().map((p) => p.name)
+          notice = `${packs.length} pack${packs.length === 1 ? '' : 's'} installed.`
+        } else if (command.length > 0) {
+          notice = `Unknown action "${command}".`
         }
+        nextAction = ''
+      }
 
-        if (sub === '' || sub === 'status') {
-          return { kind: 'success', text: buildStatusText() }
+      // Write the config fields through to the pi files so the event handlers
+      // and any pi installation pick the changes up immediately.
+      const fileConfig = configFromSettings(section, loadConfig())
+      saveConfig(fileConfig)
+      const fileState = loadState()
+      fileState.paused = section.paused
+      saveState(fileState)
+
+      if (notice !== section._notice || nextAction !== section._action || packs !== section.packs) {
+        writingBack = true
+        try {
+          await settings.update(PEON_SETTINGS_NS, {
+            _action: nextAction,
+            _notice: notice,
+            packs,
+          })
+        } finally {
+          writingBack = false
         }
+      }
+    }
 
-        const result = applySetting(sub)
-        return result.ok
-          ? { kind: 'success', text: `peon-ping: ${result.text}` }
-          : { kind: 'error', text: `peon-ping: ${result.text}` }
+    installSettingsSection(ctx, PEON_SETTINGS_NS, PEON_SETTINGS_SCHEMA, current(), {
+      setSource: (source) => { current = source },
+      onChange: () => {
+        if (writingBack) return
+        void onSectionChange().catch((error: unknown) => {
+          ctx.logger.error(`peon-ping: settings section change failed: ${error instanceof Error ? error.message : String(error)}`)
+        })
       },
     })
   }

@@ -68,35 +68,19 @@ dsh plugin --profile web remove dsh-reminder
 
 ## Usage
 
-On first run the plugin logs a reminder to install sound packs. Run:
+All settings live in the **web Settings page**: open Settings (the gear icon in the sidebar), scroll past **Agent Presets** to the **peon-ping sounds** section. There you can:
 
-```
-/peon install
-```
+- see the current state (pack, volume, toggles, relay mode) and the host notice line,
+- **Install default packs** (downloads the 10 default packs from the [peon-ping registry](https://peonping.github.io/registry/)),
+- pick the active sound pack from the installed ones,
+- set the volume,
+- toggle desktop notifications, the tool-error beep, and every sound category,
+- pause/resume sounds, set the silent window and relay mode,
+- **Preview** the current pack's session-start sound.
 
-to download the 10 default packs from the [peon-ping registry](https://peonping.github.io/registry/). To install specific packs:
+Changes are written through to `~/.config/peon-ping/config.json` immediately, so they apply to the next event without a restart. There is no `/peon` slash command — the pi TUI panel became this web page.
 
-```
-/peon install peon_ru
-/peon install peon_ru glados duke_nukem
-```
-
-Settings (the pi `/peon` TUI panel is replaced by slash-command output, since the Harness web GUI has no TUI):
-
-```
-/peon                      — current settings
-/peon install [packs...]   — download sound packs
-/peon pack <name>          — switch the active pack
-/peon volume <0-100>       — set volume percent
-/peon toggle <category>    — enable/disable one sound category
-/peon pause | resume       — pause/resume all sounds
-/peon notify on|off        — toggle desktop notifications
-/peon tool-error on|off    — beep on individual tool failures (default off)
-/peon silent <seconds>     — suppress task.complete for short tasks
-/peon relay auto|local|relay
-/peon preview              — play the session.start sound
-/peon help
-```
+To install specific packs from the registry directly, edit `~/.config/peon-ping/config.json` or use the registry's pack names with the page's install action (the page installs the defaults; pack names come from the [peon-ping registry](https://peonping.github.io/registry/index.json)).
 
 ## Platform support
 
