@@ -1,0 +1,7 @@
+# dsh-reminder bundle patch.
+#
+# Installed as a profile dependency (`dsh plugin --profile <name> add dsh-reminder`),
+# this file mounts the peon-ping plugin automatically — no manual cordis.patch.yml editing.
+- insert:
+    - id: peon-ping
+      name: 'dsh-reminder'

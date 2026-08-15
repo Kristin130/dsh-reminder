@@ -1,0 +1,39 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declarationMap": false,
+    "outDir": "lib",
+    "rootDir": ".",
+    "noEmit": false,
+    "paths": {
+      "@deepseek-ai/cordis": [
+        "D:/1codeprojects/deepseek-harness/vendor/cordis/lib/types/index.d.ts"
+      ],
+      "@deepseek-ai/dsh-agent": [
+        "D:/1codeprojects/deepseek-harness/packages/core/agent/lib/types/index.d.ts"
+      ],
+      "@deepseek-ai/dsh-agent/types": [
+        "D:/1codeprojects/deepseek-harness/packages/core/agent/lib/types/types.d.ts"
+      ],
+      "@deepseek-ai/dsh-commands": [
+        "D:/1codeprojects/deepseek-harness/packages/interaction/commands/lib/types/index.d.ts"
+      ],
+      "@deepseek-ai/dsh-commands/types": [
+        "D:/1codeprojects/deepseek-harness/packages/interaction/commands/lib/types/types.d.ts"
+      ],
+      "@deepseek-ai/dsh-session": [
+        "D:/1codeprojects/deepseek-harness/packages/core/session/lib/types/index.d.ts"
+      ],
+      "@deepseek-ai/dsh-session/types": [
+        "D:/1codeprojects/deepseek-harness/packages/core/session/lib/types/types.d.ts"
+      ],
+      "@deepseek-ai/dsh-session-title": [
+        "D:/1codeprojects/deepseek-harness/packages/session/session-title/lib/types/index.d.ts"
+      ]
+    }
+  },
+  "include": [
+    "index.ts",
+    "src"
+  ]
+}
